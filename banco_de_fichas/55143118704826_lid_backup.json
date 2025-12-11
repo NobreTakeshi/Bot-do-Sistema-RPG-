@@ -1,0 +1,70 @@
+{
+  "nome": "* Augusto",
+  "info": {
+    "idade": "* 20",
+    "genero": "Masculino",
+    "personalidade": "Cortês, calmo, paciente, comunicativo e leal",
+    "aparencia": "Merlin (Fate)"
+  },
+  "classe": "Guardião",
+  "classe_social": "Nobre",
+  "nivel": 1,
+  "xp": 0,
+  "rank": "E",
+  "pontos_livres": 0,
+  "extras": {
+    "condicao": "Concha Quebrada",
+    "habilidades_lista": [
+      "Velocidade Elevada"
+    ],
+    "elementos_lista": [
+      "Arcano"
+    ],
+    "itens": [],
+    "bonus_nivel_hp": 0,
+    "bonus_nivel_mp": 0
+  },
+  "tecnicas": [],
+  "atributos_base": {
+    "forca": 4,
+    "velocidade": 4,
+    "resistencia": 5,
+    "poder_magico": 7,
+    "controle_magico": 0,
+    "resistencia_magica": 0,
+    "precisao": 0
+  },
+  "status": {
+    "hp_atual": 500,
+    "hp_max": 500,
+    "mp_atual": 1590,
+    "mp_max": 1590,
+    "invisivel": false
+  },
+  "combate": {
+    "cooldowns": {},
+    "buffs": {},
+    "duracoes": {},
+    "turno_atual": 0
+  },
+  "servos": {
+    "ativos": [],
+    "guardados": [],
+    "hibernando": []
+  },
+  "equipamentos": {
+    "mao_direita": null,
+    "mao_esquerda": null,
+    "armadura": null,
+    "acessorio": null
+  },
+  "atributos_totais": {
+    "forca": 10,
+    "velocidade": 18,
+    "resistencia": 11,
+    "poder_magico": 28,
+    "controle_magico": 92,
+    "resistencia_magica": 15,
+    "precisao": 0
+  }
+}

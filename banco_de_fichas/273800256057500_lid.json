@@ -1,0 +1,70 @@
+{
+  "nome": "Ryusaki",
+  "info": {
+    "idade": "* 20",
+    "genero": "Masculino",
+    "personalidade": "Arrogante, calmo, estrategista",
+    "aparencia": "Overhaul"
+  },
+  "classe": "Guerreiro",
+  "classe_social": "Plebeu",
+  "nivel": 1,
+  "xp": null,
+  "rank": "E",
+  "pontos_livres": 0,
+  "extras": {
+    "condicao": "Vazio Arcano",
+    "habilidades_lista": [
+      "Arcanismo Supremo"
+    ],
+    "elementos_lista": [
+      "Fogo"
+    ],
+    "itens": [],
+    "bonus_nivel_hp": 0,
+    "bonus_nivel_mp": 0
+  },
+  "tecnicas": [],
+  "atributos_base": {
+    "forca": 5,
+    "velocidade": 5,
+    "resistencia": 3,
+    "poder_magico": 3,
+    "controle_magico": 2,
+    "resistencia_magica": 2,
+    "precisao": 0
+  },
+  "status": {
+    "hp_atual": 670,
+    "hp_max": 670,
+    "mp_atual": 0,
+    "mp_max": 0,
+    "invisivel": false
+  },
+  "combate": {
+    "cooldowns": {},
+    "buffs": {},
+    "duracoes": {},
+    "turno_atual": 0
+  },
+  "servos": {
+    "ativos": [],
+    "guardados": [],
+    "hibernando": []
+  },
+  "equipamentos": {
+    "mao_direita": null,
+    "mao_esquerda": null,
+    "armadura": null,
+    "acessorio": null
+  },
+  "atributos_totais": {
+    "forca": 84,
+    "velocidade": 33,
+    "resistencia": 84,
+    "poder_magico": 0,
+    "controle_magico": 0,
+    "resistencia_magica": 0,
+    "precisao": 0
+  }
+}

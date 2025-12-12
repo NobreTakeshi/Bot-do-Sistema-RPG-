@@ -1,48 +1,66 @@
 // ==================================================================================
-// ARQUIVO: tecnicas.js (Grimório Detalhado e Seguro)
+// ARQUIVO: tecnicas.js (Grimório Detalhado e Seguro V8)
 // ==================================================================================
 
 const TECNICAS = {
-    // --- TÉCNICAS DO SISTEMA (Públicas) ---
+    // --- HABILIDADES DE ITENS LENDÁRIOS ---
+    
     "Vórtice de Negação": {
-        tipo: "ativo", custo: 0, cd: 4, duracao: 2, publica: true,
+        tipo: "ativo",
+        custo: 50, // Custo de ativação (se quiser 0, mude aqui)
+        cd: 4,     // Cooldown de 4 turnos
+        duracao: 2, // Dura 2 turnos ativo
+        publica: true, // É pública pois o acesso depende do ITEM, não da lista de donos
         efeito: (f) => {
+            // Ativa as flags que o sistema.js lê na função aplicarDano
             f.combate.buffs["imune_magia"] = true; 
             f.combate.buffs["absorver_mp"] = true;
-            return `🛡️ **VÓRTICE DE NEGAÇÃO ATIVO!** (2 Turnos)\nPróximo dano mágico será nulificado e 50% virará Mana.`;
+            return `🛡️ **VÓRTICE DE NEGAÇÃO ATIVO!** (2 Turnos)\nUma névoa roxa te envolve. Próximo dano mágico será anulado e 50% virará Mana.`;
         },
         desc: "Item Égide: Nulifica Dano Mágico e absorve Mana."
     },
 
     "Disparo Parasitário": {
-        tipo: "ativo", custo: 0, cd: 0, publica: true,
+        tipo: "ativo",
+        custo: 0, // Geralmente gasta a mana do arco ou é de graça
+        cd: 0,
+        publica: true,
         efeito: (f) => {
-            let custoFlecha = Math.floor(f.status.mp_max * 0.02);
-            if (f.status.mp_atual < custoFlecha) return "❌ Mana insuficiente para gerar a flecha.";
-            f.status.mp_atual -= custoFlecha;
+            // 1. Custo Especial (2% da Mana Máxima)
+            let custo = Math.floor(f.status.mp_max * 0.02);
+            if (f.status.mp_atual < custo) return "❌ Mana insuficiente para canalizar o disparo.";
+            f.status.mp_atual -= custo;
 
-            let item = f.equipamentos ? Object.values(f.equipamentos).find(i => i && i.skill === "Disparo Parasitário") : null;
-            let danoExtra = item ? (item.atributos.dano_magico_fixo || 0) : 0;
-            let danoBaseArma = item ? (item.dano_base || 0) : 0;
-            let pmPlayer = f.atributos_totais.poder_magico * 20; 
-            let danoTotal = danoBaseArma + danoExtra + pmPlayer;
-            let mpKill = Math.floor(f.status.mp_max * 0.10);
+            // 2. Busca o Item Equipado para pegar os Bônus dele
+            // Procura na mão direita, esquerda ou ambas
+            let item = null;
+            if (f.equipamentos.mao_direita && f.equipamentos.mao_direita.skill === "Disparo Parasitário") item = f.equipamentos.mao_direita;
+            else if (f.equipamentos.mao_esquerda && f.equipamentos.mao_esquerda.skill === "Disparo Parasitário") item = f.equipamentos.mao_esquerda;
 
-            return `🏹 **DISPARO PARASITÁRIO (ARCO DAS ALMAS)**\n` + 
-                   `💥 **Dano Mágico:** ${danoTotal}\n` +
-                   `📉 **Penetração:** Ignora 10% da RM do alvo.\n` +
-                   `🩸 **Efeito:** Dano convertido em cura para o servo mais próximo.\n` +
-                   `💀 **Passiva (Aljava):** Se matar, recupera +${mpKill} MP.\n` +
-                   `⚙️ *Gasto:* ${custoFlecha} MP.`;
+            // Valores Base
+            let danoBaseItem = item ? (item.dano_base || 0) : 0; // Ex: 40
+            let danoFixoItem = item && item.atributos ? (item.atributos.dano_magico_fixo || 0) : 0; // Ex: 440
+            let pmPlayer = f.atributos_totais.poder_magico * 20; // Dano do Player
+
+            // Dano Final
+            let danoTotal = danoBaseItem + danoFixoItem + pmPlayer;
+            let mpRegen = Math.floor(f.status.mp_max * 0.10); // Se matar recupera 10% (Texto narrativo)
+
+            return `🏹 **DISPARO PARASITÁRIO**\n` +
+                   `💥 **Dano Mágico Total:** ${danoTotal}\n` +
+                   `_(Base ${danoBaseItem} + Extra ${danoFixoItem} + PM ${pmPlayer})_\n` +
+                   `🩸 **Efeito:** O dano causado é convertido em cura para o servo mais próximo.\n` +
+                   `💀 **Ceifador:** Se matar o alvo, recupera +${mpRegen} MP.`;
         },
-        desc: "Item Arco: Dano converte em cura. Ignora RM."
+        desc: "Item Arco: Dano massivo que cura servos."
     },
 
     // --- TÉCNICAS EXCLUSIVAS (Arthur) ---
-    // publica: false -> Só quem estiver na lista 'donos' pode adicionar/usar
+    // Nota: 'donos' deve conter IDs entre aspas, ex: ['551199999999@c.us']
+    
     "Constructo": {
         tipo: "ativo", custo: 100, cd: 2, duracao: 3,
-        publica: false, donos: ["5599999999@c.us"], // Coloque o ID real do Arthur aqui ou deixe vazio para adicionar via comando
+        publica: false, donos: [], 
         efeito: (f) => {
             let pm = f.atributos_totais.poder_magico;
             let cm = f.atributos_totais.controle_magico;
@@ -98,22 +116,29 @@ const TECNICAS = {
         desc: "Nuvem tóxica que debuffa inimigos e cura o servo."
     },
 
-    "Colheita": { tipo: "passivo", publica: false, desc: "Matar servos/inimigos dá +5% Regen MP." },
-    "Transferência": { tipo: "passivo", publica: false, desc: "Dano recebido é transferido para servo a 5m." },
+    "Colheita": { 
+        tipo: "passivo", publica: false, donos: [],
+        desc: "Matar servos/inimigos dá +5% Regen MP." 
+    },
+    
+    "Transferência": { 
+        tipo: "passivo", publica: false, donos: [],
+        desc: "Dano recebido é transferido para servo a 5m." 
+    },
 
     // --- TÉCNICAS DO YUKINE ---
     "Berço do Monstro": {
-        tipo: "ativo", custo: 150, cd: 3, publica: false,
+        tipo: "ativo", custo: 150, cd: 3, publica: false, donos: [],
         efeito: (f) => { return `❄️ **BERÇO DO MONSTRO**\n🛡️ Barreira: ${55 + (f.atributos_totais.poder_magico * 20)} Defesa.`; },
         desc: "Cria barreira de água defensiva."
     },
     "Tentáculos": {
-        tipo: "ativo", custo: 300, cd: 5, publica: false,
+        tipo: "ativo", custo: 300, cd: 5, publica: false, donos: [],
         efeito: (f) => { return `🐙 **MONSTRO DAS PROFUNDEZAS**\n🦑 8 Tentáculos (Alcance 25m).`; },
         desc: "Invoca tentáculos ofensivos."
     },
     "Bênção do Oceano": {
-        tipo: "ativo", custo: 500, cd: 6, publica: false,
+        tipo: "ativo", custo: 500, cd: 6, publica: false, donos: [],
         efeito: (f) => { return `💧 **BÊNÇÃO DO OCEANO**\n💖 Cura: ${Math.floor((f.atributos_totais.poder_magico * 20) * 0.60)} HP/turno.`; },
         desc: "Cura em área massiva."
     }

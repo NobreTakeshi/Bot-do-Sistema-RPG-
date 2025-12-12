@@ -15,23 +15,72 @@ const {
 const FOLDER_DB = './banco_de_fichas';
 if (!fs.existsSync(FOLDER_DB)) fs.mkdirSync(FOLDER_DB);
 
-// --- CONFIGURAÇÃO DE ADM (Game Masters) ---
-// Coloque aqui os números dos ADMs. Formato: '55DD99999999@c.us'
-const ADMINS = [
-    '55999999999@c.us' 
+// ARQUIVO DE CACHE DE MEMBROS (WHITELIST)
+const WHITELIST_PATH = './whitelist.json';
+
+// --- 1. ADMINS SUPREMOS (Seu número aqui é lei) ---
+const ADMINS_SUPREMOS = [
+    '100768724082878@lid' // <--- Coloque seu número aqui para garantir
 ];
+
+// --- 2. CONFIGURAÇÃO DE GRUPOS PERMITIDOS ---
+const GRUPOS_PERMITIDOS = [
+    '120363405495714050@g.us', 
+    '120363423680759860@g.us', 
+    '120363418363737247@g.us', 
+    '120363405595749323@g.us', 
+    '120363403162065417@g.us'
+];
+
+// Cache em memória
+let MEMBROS_CACHE = [];
 
 const batalhasAtivas = new Map();
 const desafiosPendentes = new Map();
 
-// --- FUNÇÕES AUXILIARES LOCAIS ---
+// --- FUNÇÕES AUXILIARES ---
+
+// Limpa formatação do ID para comparar números (CORREÇÃO CRÍTICA)
+function compararIDs(id1, id2) {
+    if (!id1 || !id2) return false;
+    const n1 = id1.replace(/\D/g, ''); 
+    const n2 = id2.replace(/\D/g, '');
+    return n1 === n2;
+}
+
+function carregarWhitelistDisk() {
+    if (fs.existsSync(WHITELIST_PATH)) {
+        try {
+            MEMBROS_CACHE = JSON.parse(fs.readFileSync(WHITELIST_PATH, 'utf-8'));
+        } catch (e) { MEMBROS_CACHE = []; }
+    }
+}
+
+function salvarWhitelistDisk() {
+    try { fs.writeFileSync(WHITELIST_PATH, JSON.stringify(MEMBROS_CACHE, null, 2)); } catch(e){}
+}
+
+function atualizarUsuarioCache(idUser, isAdmin) {
+    // Procura usando a comparação inteligente
+    const index = MEMBROS_CACHE.findIndex(u => compararIDs(u.id, idUser));
+    if (index !== -1) {
+        if (MEMBROS_CACHE[index].admin !== isAdmin) {
+            MEMBROS_CACHE[index].admin = isAdmin;
+            salvarWhitelistDisk();
+        }
+    } else {
+        MEMBROS_CACHE.push({ id: idUser, admin: isAdmin });
+        salvarWhitelistDisk();
+    }
+}
+
+// --- FUNÇÕES DE SISTEMA (Padrão) ---
 function getFichaLocal(id) {
     const safeId = id.replace(/[^a-zA-Z0-9]/g, '_');
     const caminho = path.join(FOLDER_DB, `${safeId}.json`);
     if (fs.existsSync(caminho)) return JSON.parse(fs.readFileSync(caminho, 'utf-8'));
     return null;
 }
-
 function saveFichaLocal(id, dados) {
     const safeId = id.replace(/[^a-zA-Z0-9]/g, '_');
     const caminho = path.join(FOLDER_DB, `${safeId}.json`);
@@ -40,31 +89,23 @@ function saveFichaLocal(id, dados) {
     fs.writeFileSync(caminho, JSON.stringify(dados, null, 2));
     registrarLog(safeId, "Salvo via Bot", id);
 }
-
 function retrocederFicha(id) {
     const safeId = id.replace(/[^a-zA-Z0-9]/g, '_');
     const caminho = path.join(FOLDER_DB, `${safeId}.json`);
     const backup = path.join(FOLDER_DB, `${safeId}_backup.json`);
-    if (fs.existsSync(backup)) { 
-        fs.copyFileSync(backup, caminho); 
-        registrarLog(safeId, "Retroceder Usado", id);
-        return true; 
-    }
+    if (fs.existsSync(backup)) { fs.copyFileSync(backup, caminho); registrarLog(safeId, "Retroceder Usado", id); return true; }
     return false;
 }
-
 function deleteFicha(id) {
     const safeId = id.replace(/[^a-zA-Z0-9]/g, '_');
     const caminho = path.join(FOLDER_DB, `${safeId}.json`);
     if (fs.existsSync(caminho)) fs.unlinkSync(caminho);
 }
-
 function extrairIdMencao(texto) {
     const match = texto.match(/@(\d+)/);
     if (match && match[1]) return `${match[1]}@c.us`;
     return null;
 }
-
 function verificarAparenciaUnica(novaAparencia, idAutor) {
     if (!novaAparencia || novaAparencia === "--" || novaAparencia.length < 3) return true;
     const arquivos = fs.readdirSync(FOLDER_DB);
@@ -86,41 +127,137 @@ const client = new Client({
 });
 
 client.on('qr', (qr) => qrcode.generate(qr, { small: true }));
-client.on('ready', () => console.log('✅ Bot RPG V8 (Detalhado) Online!'));
+
+client.on('ready', () => {
+    console.log('✅ Bot RPG Online!');
+    carregarWhitelistDisk(); 
+});
 
 client.on('message', async msg => {
     if (!msg.body) return;
+
+    const sender = msg.author || msg.from;
+    const isGroup = msg.from.includes('@g.us');
+    
+    let acessoPermitido = false;
+    let isGM = false;
+
+    // --- LÓGICA DE SEGURANÇA V3 (COM COMPARAÇÃO INTELIGENTE) ---
+
+    // 1. Prioridade: Admin Supremo (Lista Manual)
+    for (const adminId of ADMINS_SUPREMOS) {
+        if (compararIDs(sender, adminId)) {
+            isGM = true;
+            acessoPermitido = true;
+            break; 
+        }
+    }
+
+    // 2. Se não for Supremo, verifica Grupos
+    if (!isGM) {
+        if (isGroup) {
+            // [MODO GRUPO]
+            if (GRUPOS_PERMITIDOS.includes(msg.from)) {
+                acessoPermitido = true;
+                
+                // Tenta verificar se é admin do grupo (AGORA USANDO compararIDs)
+                let userIsAdmin = false;
+                try {
+                    const chat = await msg.getChat();
+                    // AQUI ESTAVA O PROBLEMA ANTES:
+                    const participante = chat.participants.find(p => compararIDs(p.id._serialized, sender));
+                    
+                    if (participante && (participante.isAdmin || participante.isSuperAdmin)) {
+                        userIsAdmin = true;
+                        isGM = true;
+                    }
+                } catch(e) {}
+
+                atualizarUsuarioCache(sender, userIsAdmin);
+            }
+        } else {
+            // [MODO PRIVADO] - Whitelist Cache
+            const cacheUser = MEMBROS_CACHE.find(u => compararIDs(u.id, sender));
+            
+            if (cacheUser) {
+                acessoPermitido = true;
+                if (cacheUser.admin) isGM = true;
+            } else {
+                return; 
+            }
+        }
+    }
+
+    if (!acessoPermitido) return;
+
+    // --- FIM DA SEGURANÇA ---
+
     const texto = msg.body.trim();
     const args = texto.split(" ");
     const comando = args[0].toLowerCase();
-    const sender = msg.author || msg.from; 
-    const isGM = ADMINS.includes(sender);
-
     // ==================================================================
-    // 1. MENUS DETALHADOS (RESTAURADOS)
+    // 1. MENU COMPLETO E ORGANIZADO
     // ==================================================================
-    
     if (comando === '!menu') {
-        return msg.reply(`📂 **SISTEMA**
-• *!save* ➝ Salva a ficha.
-• *!ficha* ➝ Vê a ficha completa.
-• *!aparencias* ➝ Lista faceclaims.
-• *!apagar* ➝ Deleta a ficha.
+        return msg.reply(`🤖 *SISTEMA RPG - LISTA DE COMANDOS*
 
-📈 **EVOLUÇÃO**
-• *!xp [val]* ➝ Ganhar XP.
-• *!up [attr] [qtd]* ➝ Gastar pontos.
-• *!historia* ➝ XP narrativo.
+━━━━━━━━━━━━━━━━━━━━
+👤 *ÁREA DO JOGADOR*
+━━━━━━━━━━━━━━━━━━━━
 
-⚔️ **COMBATE**
-• *!cena* ➝ Turno (Regen/CDs).
-• *!usar [nome]* ➝ Habilidade.
-• *!dano / !curar* ➝ [val]
-• *!descansar* ➝ Fim de batalha (Cura Total).
+📂 *GESTÃO & PERFIL*
+• \`!save\` ➝ Salvar ou atualizar sua ficha.
+• \`!ficha\` ➝ Ver seus dados completos e lore.
+• \`!status\` ➝ Ver HP, MP, Dano e Cooldowns.
+• \`!aparencias\` ➝ Ver personagens em uso.
+• \`!retroceder\` ➝ Desfazer a última alteração (Undo).
+• \`!apagar\` ➝ Deletar sua ficha permanentemente.
 
-📚 **EXTRAS**
-• *!addskill [nome]*
-• *!additem [nome] [rar]*`);
+📈 *EVOLUÇÃO*
+• \`!up [sigla] [qtd]\` ➝ Gastar pontos em atributos.
+• \`!pontos\` ➝ Ver saldo de pontos livres.
+• \`!historia\` ➝ Escrever narração para ganhar XP.
+
+⚔️ *COMBATE (PvE)*
+• \`!dano [valor]\` ➝ Receber dano (ou tankar com servo).
+• \`!curar [valor]\` ➝ Recuperar HP atual.
+• \`!usar [nome]\` ➝ Ativar Habilidade ou Efeito.
+• \`!testeefeito\` ➝ Testar se magia de status funcionou.
+• \`!cena\` ➝ *Fim de Turno* (Regenera e baixa CDs).
+• \`!descansar\` ➝ *Fim de Missão* (Cura 100%).
+
+🤺 *DUELOS (PvP)*
+• \`!batalha @player\` ➝ Desafiar alguém.
+• \`!aceitar\` ➝ Aceitar o desafio.
+• \`!render\` ➝ Desistir da luta.
+
+🎒 *ITENS & TROCAS*
+• \`!equipar [nome]\` ➝ Usar item e ganhar bônus.
+• \`!consumir [nome]\` ➝ Usar poção ou comida.
+• \`!daritem @player\` ➝ Enviar item para outro.
+
+💀 *NECROMANCIA & SERVOS*
+• \`!capturar\` ➝ Transformar inimigo morto em servo.
+• \`!invocar [nome]\` ➝ Trazer servo para a luta.
+• \`!guardar [nome]\` ➝ Recolher para a sombra (Cura).
+• \`!acordar [nome]\` ➝ Tirar da hibernação (Requer cura).
+• \`!desvincular\` ➝ Libertar/Apagar um servo.
+• \`!vernpc [nome]\` ➝ Checar status de um inimigo.
+
+━━━━━━━━━━━━━━━━━━━━
+👑 *ÁREA DO ADMINISTRADOR (GM)*
+━━━━━━━━━━━━━━━━━━━━
+
+🎁 *RECOMPENSAS*
+• \`!xp [valor] @player\` ➝ Dar experiência/Nível.
+• \`!additem [nome] @player\` ➝ Criar item na mochila.
+• \`!addskill [nome] @player\` ➝ Ensinar técnica.
+• \`!addelemento\` / \`!addextra\` ➝ Adições diversas.
+• \`!addpontos\` ➝ Dar pontos extras sem nível.
+
+🛠️ *MUNDO & NARRATIVA*
+• \`!savenpc\` ➝ Salvar ficha colada como Monstro/NPC.
+• \`!narrar [texto]\` ➝ Enviar mensagem oficial do Sistema.`);
     }
 
     if (comando === '!ajuda' || comando === '!menu aprendiz') {
@@ -485,39 +622,77 @@ _Comandos para aprender novas capacidades._
     // !additem, !addskill, !addelemento, !addextra, !addpontos
     // Estes comandos agora são GERALMENTE restritos, mas vamos manter a lógica de segurança:
     // Se for GM -> Faz tudo. Se for Player -> Só faz itens/skills que forem públicos ou tiverem permissão.
-    if (['!additem', '!addskill', '!addelemento', '!addextra', '!addpontos'].includes(comando)) {
-        if (isGM) {
-            // Lógica de GM (Pode adicionar em qualquer um)
-            let idAlvo = (msg.mentionedIds && msg.mentionedIds[0]) || extrairIdMencao(texto) || sender;
-            const ficha = getFichaLocal(idAlvo);
-            if (!ficha) return msg.reply("❌ Ficha não encontrada.");
-            const nomeArg = texto.replace(/!add\w+|@\S+/gi, "").trim(); 
-            
-            if (comando === '!additem') msg.reply(adicionarItem(ficha, nomeArg, "Comum", sender));
-            if (comando === '!addskill') msg.reply(adicionarSkill(ficha, nomeArg, sender));
-            if (comando === '!addelemento') msg.reply(adicionarElemento(ficha, nomeArg));
-            if (comando === '!addextra') msg.reply(adicionarExtra(ficha, nomeArg));
-            if (comando === '!addpontos') { 
-                const qtd = parseInt(args[1]) || parseInt(nomeArg); 
-                ficha.pontos_livres += qtd; 
-                msg.reply(`💎 +${qtd} pontos.`); 
-            }
-            saveFichaLocal(idAlvo, ficha);
-            registrarLog(idAlvo, `GM ${comando}: ${nomeArg}`, sender);
-        } else {
-            // Lógica de Player (Só nele mesmo e com restrições de autoria)
-            if (['!additem', '!addskill'].includes(comando)) {
-               const ficha = getFichaLocal(sender);
-               if (!ficha) return;
-               const nomeArg = args.slice(1).join(" ");
-               
-               if (comando === '!additem') msg.reply(adicionarItem(ficha, nomeArg, "Comum", sender));
-               if (comando === '!addskill') msg.reply(adicionarSkill(ficha, nomeArg, sender));
-               saveFichaLocal(sender, ficha);
-            } else {
-                return msg.reply("⛔ Apenas GMs podem usar este comando.");
-            }
+    // ==================================================================
+    // 2. COMANDOS EXCLUSIVOS DE GM
+    // ==================================================================
+    
+    // BLOCO 1: ESTRITOS (XP, Pontos, Elementos)
+    if (['!xp', '!addelemento', '!addextra', '!addpontos'].includes(comando)) {
+        if (!isGM) return msg.reply("⛔ Apenas Admins podem usar este comando.");
+        
+        // LÓGICA DE AUTO-ALVO: Se não marcou ninguém, é para si mesmo.
+        let idAlvo = (msg.mentionedIds && msg.mentionedIds[0]) || extrairIdMencao(texto) || sender;
+        
+        const ficha = getFichaLocal(idAlvo);
+        if (!ficha) return msg.reply("❌ Ficha não encontrada para o alvo.");
+        
+        // Remove comando e menção para pegar argumentos limpos
+        const nomeArg = texto.replace(/!add\w+|!xp|@\S+/gi, "").trim();
+        // Tenta pegar número do segundo argumento (ex: !xp 500) ou do nomeArg
+        const valorNum = parseInt(args[1]) || parseInt(nomeArg); 
+        
+        if (comando === '!xp') {
+            if (isNaN(valorNum)) return msg.reply("❌ Digite o valor. Ex: `!xp 1000`");
+            const res = adicionarXP(ficha, valorNum);
+            msg.reply(`🌟 **XP Adicionado!**\n👤 Alvo: ${ficha.nome}\n📊 Nível Atual: ${res.nivel}`);
         }
+        if (comando === '!addelemento') msg.reply(adicionarElemento(ficha, nomeArg));
+        if (comando === '!addextra') msg.reply(adicionarExtra(ficha, nomeArg));
+        if (comando === '!addpontos') { 
+            if (isNaN(valorNum)) return msg.reply("❌ Valor inválido.");
+            ficha.pontos_livres += valorNum; 
+            msg.reply(`💎 +${valorNum} pontos para ${ficha.nome}.`); 
+        }
+
+        saveFichaLocal(idAlvo, ficha);
+        registrarLog(idAlvo, `GM ${comando} (${nomeArg})`, sender);
+        return;
+    }
+
+// BLOCO 2: COMANDOS HÍBRIDOS (Skills e Itens)
+    if (['!addskill', '!additem'].includes(comando)) {
+        let idAlvo = sender; 
+        let nomeArg = "";
+
+        // 1. Identifica Alvo e Argumento
+        if (isGM && (msg.mentionedIds[0] || texto.includes('@'))) {
+            // Se for GM marcando alguém
+            idAlvo = (msg.mentionedIds && msg.mentionedIds[0]) || extrairIdMencao(texto);
+            nomeArg = texto.replace(/!add\w+|@\S+/gi, "").trim();
+        } else {
+            // Player ou GM neles mesmos
+            nomeArg = texto.replace(/!add\w+/gi, "").trim();
+        }
+
+        const ficha = getFichaLocal(idAlvo);
+        if (!ficha) return msg.reply("❌ Ficha não encontrada.");
+
+        // 2. Executa o Comando
+        if (comando === '!addskill') {
+            msg.reply(adicionarSkill(ficha, nomeArg, sender, isGM));
+        }
+
+        if (comando === '!additem') {
+            // CORREÇÃO: Não passamos mais raridade manual "Comum".
+            // Passamos null no 2º parâmetro para o sistema.js usar apenas o itens.js
+            msg.reply(adicionarItem(ficha, nomeArg, null, sender)); 
+        }
+
+        saveFichaLocal(idAlvo, ficha);
+        
+        // Log para GM
+        if(isGM) registrarLog(idAlvo, `GM ${comando}: ${nomeArg}`, sender);
+        return;
     }
 
     if (comando === '!equipar') {
@@ -633,5 +808,71 @@ _Comandos para aprender novas capacidades._
         msg.reply("🗑️ Apagado.");
     }
 });
+
+// ==================================================================================
+// SISTEMA DE EVENTOS AGENDADOS (CAÇADA DE SEXTA-FEIRA)
+// ==================================================================================
+
+// Grupos que receberão o aviso público
+const GRUPOS_AVISO_CAÇADA = [
+    '120363423680759860@g.us', // Bot de Batalha
+    '120363418363737247@g.us'  // Comandos
+];
+
+// Função que varre o banco de dados
+function dispararEventoCaçada() {
+    console.log("🌕 Iniciando Evento de Caçada (Sangue Ancestral)...");
+    const arquivos = fs.readdirSync(FOLDER_DB);
+    let alvos = [];
+
+    // 1. Encontra quem tem Sangue Ancestral
+    arquivos.forEach(file => {
+        if (!file.includes("backup") && !file.includes("SERVO") && !file.includes("NPC_")) {
+            try {
+                const dados = JSON.parse(fs.readFileSync(path.join(FOLDER_DB, file), 'utf-8'));
+                if (dados.extras && dados.extras.condicao === "Sangue Ancestral") {
+                    // Guarda Nome e ID (telefone)
+                    alvos.push({ nome: dados.nome, id: file.replace('.json', '') });
+                }
+            } catch (e) { console.error(`Erro ao ler ${file}:`, e); }
+        }
+    });
+
+    if (alvos.length === 0) return; // Ninguém pra caçar
+
+    // 2. Monta a Mensagem Pública
+    const listaNomes = alvos.map(a => `• ${a.nome}`).join("\n");
+    const msgPublica = `🩸 **SANGUE ANCESTRAL: A CAÇADA COMEÇOU** 🩸\n\n` +
+        `A linhagem antiga pulsa forte nesta sexta-feira... As entidades sentiram o cheiro do poder.\n\n` +
+        `**ALVOS MARCADOS:**\n${listaNomes}\n\n` +
+        `⚠️ *Jogadores listados: Procurem um GM imediatamente para realizar seu Teste de Caçada (1d100).*`;
+
+    // 3. Envia nos Grupos
+    GRUPOS_AVISO_CAÇADA.forEach(grupoId => {
+        client.sendMessage(grupoId, msgPublica).catch(err => console.log(`Erro ao enviar no grupo ${grupoId}`));
+    });
+
+    // 4. Envia no Privado dos Jogadores
+    alvos.forEach(alvo => {
+        const msgPrivada = `👁️ **VOCÊ ESTÁ SENDO CAÇADO!**\n\n` +
+            `Sua condição *Sangue Ancestral* atraiu atenções indesejadas.\n` +
+            `Compareça ao grupo e realize o teste com um GM. Boa sorte.`;
+        
+        // Formata o ID corretamente (adiciona @c.us se faltar)
+        let idEnvio = alvo.id.includes('@') ? alvo.id : `${alvo.id}@c.us`;
+        client.sendMessage(idEnvio, msgPrivada).catch(err => console.log(`Erro ao enviar PV para ${alvo.nome}`));
+    });
+}
+
+// Relógio que checa a hora a cada 60 segundos
+setInterval(() => {
+    const agora = new Date();
+    // 5 = Sexta-feira
+    // 20 = 20:00 horas (8 PM)
+    // 0 = 00 minutos
+    if (agora.getDay() === 5 && agora.getHours() === 20 && agora.getMinutes() === 0) {
+        dispararEventoCaçada();
+    }
+}, 60000); // 60000ms = 1 minuto
 
 client.initialize();

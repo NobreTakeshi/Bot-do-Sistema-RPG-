@@ -1,0 +1,99 @@
+{
+  "nome": "Arthur I'n Waker",
+  "info": {
+    "idade": "* +1000",
+    "genero": "M",
+    "personalidade": "Calmo, reservado, arrogante e animado",
+    "aparencia": "Rimuru Tempest | Tensei Shimata datta ken slime"
+  },
+  "classe": "Necromante",
+  "classe_social": "Plebeu",
+  "nivel": 5,
+  "xp": 300,
+  "rank": "E",
+  "pontos_livres": 0,
+  "extras": {
+    "condicao": "Fardo da Eternidade",
+    "habilidades_lista": [
+      "Intensificação Mágica",
+      "Arcanismo Supremo"
+    ],
+    "elementos_lista": [
+      "Trevas"
+    ],
+    "itens": [
+      {
+        "nome": "O Arco das Almas Perdidas",
+        "raridade": "Raro",
+        "slot": "ambas",
+        "skill": "Disparo Parasitário",
+        "atributos": {
+          "precisao": 30,
+          "dano_magico_fixo": 440
+        }
+      },
+      {
+        "nome": "A Égide do Vazio",
+        "raridade": "Raro",
+        "slot": "mao_esquerda",
+        "skill": "Vórtice de Negação",
+        "atributos": {
+          "resistencia": 30,
+          "resistencia_magica": 30,
+          "poder_magico": 22
+        }
+      }
+    ],
+    "bonus_nivel_hp": 200,
+    "bonus_nivel_mp": 200
+  },
+  "tecnicas": [
+    "Constructo",
+    "Miasma",
+    "Transferência",
+    "Colheita",
+    "Legião Oculta"
+  ],
+  "atributos_base": {
+    "forca": 0,
+    "velocidade": 52,
+    "resistencia": 40,
+    "poder_magico": 10,
+    "controle_magico": 10,
+    "resistencia_magica": 3,
+    "precisao": 5
+  },
+  "status": {
+    "hp_atual": 1300,
+    "hp_max": 1300,
+    "mp_atual": 2000,
+    "mp_max": 2000,
+    "invisivel": false
+  },
+  "combate": {
+    "cooldowns": {},
+    "buffs": {},
+    "duracoes": {},
+    "turno_atual": 0
+  },
+  "servos": {
+    "ativos": [],
+    "guardados": [],
+    "hibernando": []
+  },
+  "equipamentos": {
+    "mao_direita": null,
+    "mao_esquerda": null,
+    "armadura": null,
+    "acessorio": null
+  },
+  "atributos_totais": {
+    "forca": 8,
+    "velocidade": 58,
+    "resistencia": 200,
+    "poder_magico": 170,
+    "controle_magico": 85,
+    "resistencia_magica": 3,
+    "precisao": 5
+  }
+}
